@@ -54,7 +54,7 @@
 
         function usePdfJs() {
           
-            location = "pdfjs/web/?file=" + file + "#zoom=page-fit";
+            location = "pdfjs/web/?file=" + file + (location.hash || "#zoom=page-fit");
         }
 
 
