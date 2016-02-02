@@ -1,3 +1,4 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* Copyright 2012 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +32,6 @@ var PDFFindBar = (function PDFFindBarClosure() {
     this.highlightAll = options.highlightAllCheckbox || null;
     this.caseSensitive = options.caseSensitiveCheckbox || null;
     this.findMsg = options.findMsg || null;
-    this.findResultsCount = options.findResultsCount || null;
     this.findStatusIcon = options.findStatusIcon || null;
     this.findPreviousButton = options.findPreviousButton || null;
     this.findNextButton = options.findNextButton || null;
@@ -94,8 +94,7 @@ var PDFFindBar = (function PDFFindBarClosure() {
       return window.dispatchEvent(event);
     },
 
-    updateUIState:
-        function PDFFindBar_updateUIState(state, previous, matchCount) {
+    updateUIState: function PDFFindBar_updateUIState(state, previous) {
       var notFound = false;
       var findMsg = '';
       var status = '';
@@ -132,26 +131,6 @@ var PDFFindBar = (function PDFFindBarClosure() {
 
       this.findField.setAttribute('data-status', status);
       this.findMsg.textContent = findMsg;
-
-      this.updateResultsCount(matchCount);
-    },
-
-    updateResultsCount: function(matchCount) {
-      if (!this.findResultsCount) {
-        return; // no UI control is provided
-      }
-
-      // If there are no matches, hide the counter
-      if (!matchCount) {
-        this.findResultsCount.classList.add('hidden');
-        return;
-      }
-
-      // Create the match counter
-      this.findResultsCount.textContent = matchCount.toLocaleString();
-
-      // Show the counter
-      this.findResultsCount.classList.remove('hidden');
     },
 
     open: function PDFFindBar_open() {
@@ -184,3 +163,4 @@ var PDFFindBar = (function PDFFindBarClosure() {
   };
   return PDFFindBar;
 })();
+

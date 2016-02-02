@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /* Copyright 2012 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,37 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/* globals ColorSpace, PDFFunction, Util, error, warn, info, isArray, isStream,
+           assert, isPDFFunction, UnsupportedManager, UNSUPPORTED_FEATURES */
 
 'use strict';
 
-(function (root, factory) {
-  if (typeof define === 'function' && define.amd) {
-    define('pdfjs/core/pattern', ['exports', 'pdfjs/shared/util',
-      'pdfjs/core/primitives', 'pdfjs/core/function',
-      'pdfjs/core/colorspace'], factory);
-  } else if (typeof exports !== 'undefined') {
-    factory(exports, require('../shared/util.js'), require('./primitives.js'),
-      require('./function.js'), require('./colorspace.js'));
-  } else {
-    factory((root.pdfjsCorePattern = {}), root.pdfjsSharedUtil,
-      root.pdfjsCorePrimitives, root.pdfjsCoreFunction,
-      root.pdfjsCoreColorSpace);
-  }
-}(this, function (exports, sharedUtil, corePrimitives, coreFunction,
-                  coreColorSpace) {
-
-var UNSUPPORTED_FEATURES = sharedUtil.UNSUPPORTED_FEATURES;
-var MissingDataException = sharedUtil.MissingDataException;
-var Util = sharedUtil.Util;
-var assert = sharedUtil.assert;
-var error = sharedUtil.error;
-var info = sharedUtil.info;
-var warn = sharedUtil.warn;
-var isStream = corePrimitives.isStream;
-var PDFFunction = coreFunction.PDFFunction;
-var ColorSpace = coreColorSpace.ColorSpace;
-
-var ShadingType = {
+var PatternType = {
   FUNCTION_BASED: 1,
   AXIAL: 2,
   RADIAL: 3,
@@ -67,33 +44,24 @@ var Pattern = (function PatternClosure() {
   };
 
   Pattern.parseShading = function Pattern_parseShading(shading, matrix, xref,
-                                                       res, handler) {
+                                                       res) {
 
     var dict = isStream(shading) ? shading.dict : shading;
     var type = dict.get('ShadingType');
 
-    try {
-      switch (type) {
-        case ShadingType.AXIAL:
-        case ShadingType.RADIAL:
-          // Both radial and axial shadings are handled by RadialAxial shading.
-          return new Shadings.RadialAxial(dict, matrix, xref, res);
-        case ShadingType.FREE_FORM_MESH:
-        case ShadingType.LATTICE_FORM_MESH:
-        case ShadingType.COONS_PATCH_MESH:
-        case ShadingType.TENSOR_PATCH_MESH:
-          return new Shadings.Mesh(shading, matrix, xref, res);
-        default:
-          throw new Error('Unsupported ShadingType: ' + type);
-      }
-    } catch (ex) {
-      if (ex instanceof MissingDataException) {
-        throw ex;
-      }
-      handler.send('UnsupportedFeature',
-                   {featureId: UNSUPPORTED_FEATURES.shadingPattern});
-      warn(ex);
-      return new Shadings.Dummy();
+    switch (type) {
+      case PatternType.AXIAL:
+      case PatternType.RADIAL:
+        // Both radial and axial shadings are handled by RadialAxial shading.
+        return new Shadings.RadialAxial(dict, matrix, xref, res);
+      case PatternType.FREE_FORM_MESH:
+      case PatternType.LATTICE_FORM_MESH:
+      case PatternType.COONS_PATCH_MESH:
+      case PatternType.TENSOR_PATCH_MESH:
+        return new Shadings.Mesh(shading, matrix, xref, res);
+      default:
+        UnsupportedManager.notify(UNSUPPORTED_FEATURES.shadingPattern);
+        return new Shadings.Dummy();
     }
   };
   return Pattern;
@@ -102,8 +70,10 @@ var Pattern = (function PatternClosure() {
 var Shadings = {};
 
 // A small number to offset the first/last color stops so we can insert ones to
-// support extend. Number.MIN_VALUE is too small and breaks the extend.
-Shadings.SMALL_NUMBER = 1e-6;
+// support extend.  Number.MIN_VALUE appears to be too small and breaks the
+// extend. 1e-7 works in FF but chrome seems to use an even smaller sized number
+// internally so we have to go bigger.
+Shadings.SMALL_NUMBER = 1e-2;
 
 // Radial and axial shading have very similar implementations
 // If needed, the implementations can be broken into two classes
@@ -131,7 +101,7 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
       extendEnd = extendArr[1];
     }
 
-    if (this.shadingType === ShadingType.RADIAL &&
+    if (this.shadingType === PatternType.RADIAL &&
        (!extendStart || !extendEnd)) {
       // Radial gradient only currently works if either circle is fully within
       // the other circle.
@@ -176,14 +146,14 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
       ratio[0] = i;
       fn(ratio, 0, color, 0);
       rgbColor = cs.getRgb(color, 0);
-      var cssColor = Util.makeCssRgb(rgbColor[0], rgbColor[1], rgbColor[2]);
+      var cssColor = Util.makeCssRgb(rgbColor);
       colorStops.push([(i - t0) / diff, cssColor]);
     }
 
     var background = 'transparent';
     if (dict.has('Background')) {
       rgbColor = cs.getRgb(dict.get('Background'), 0);
-      background = Util.makeCssRgb(rgbColor[0], rgbColor[1], rgbColor[2]);
+      background = Util.makeCssRgb(rgbColor);
     }
 
     if (!extendStart) {
@@ -206,13 +176,13 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
       var coordsArr = this.coordsArr;
       var shadingType = this.shadingType;
       var type, p0, p1, r0, r1;
-      if (shadingType === ShadingType.AXIAL) {
+      if (shadingType === PatternType.AXIAL) {
         p0 = [coordsArr[0], coordsArr[1]];
         p1 = [coordsArr[2], coordsArr[3]];
         r0 = null;
         r1 = null;
         type = 'axial';
-      } else if (shadingType === ShadingType.RADIAL) {
+      } else if (shadingType === PatternType.RADIAL) {
         p0 = [coordsArr[0], coordsArr[1]];
         p1 = [coordsArr[3], coordsArr[4]];
         r0 = coordsArr[2];
@@ -226,11 +196,6 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
       if (matrix) {
         p0 = Util.applyTransform(p0, matrix);
         p1 = Util.applyTransform(p1, matrix);
-        if (shadingType === ShadingType.RADIAL) {
-          var scale = Util.singularValueDecompose2dScale(matrix);
-          r0 *= scale[0];
-          r1 *= scale[1];
-        }
       }
 
       return ['RadialAxial', type, this.colorStops, p0, p1, r0, r1];
@@ -251,7 +216,7 @@ Shadings.Mesh = (function MeshClosure() {
 
     var numComps = context.numComps;
     this.tmpCompsBuf = new Float32Array(numComps);
-    var csNumComps = context.colorSpace.numComps;
+    var csNumComps = context.colorSpace;
     this.tmpCsCompsBuf = context.colorFn ? new Float32Array(csNumComps) :
                                            this.tmpCompsBuf;
   }
@@ -371,10 +336,13 @@ Shadings.Mesh = (function MeshClosure() {
 
       reader.align();
     }
+
+    var psPacked = new Int32Array(ps);
+
     mesh.figures.push({
       type: 'triangles',
-      coords: new Int32Array(ps),
-      colors: new Int32Array(ps),
+      coords: psPacked,
+      colors: psPacked
     });
   }
 
@@ -389,10 +357,13 @@ Shadings.Mesh = (function MeshClosure() {
       coords.push(coord);
       colors.push(color);
     }
+
+    var psPacked = new Int32Array(ps);
+
     mesh.figures.push({
       type: 'lattice',
-      coords: new Int32Array(ps),
-      colors: new Int32Array(ps),
+      coords: psPacked,
+      colors: psPacked,
       verticesPerRow: verticesPerRow
     });
   }
@@ -534,32 +505,29 @@ Shadings.Mesh = (function MeshClosure() {
           break;
         case 1:
           tmp1 = ps[12]; tmp2 = ps[13]; tmp3 = ps[14]; tmp4 = ps[15];
-          ps[12] = tmp4; ps[13] = pi + 0;  ps[14] = pi + 1;  ps[15] = pi + 2;
-          ps[ 8] = tmp3; /* values for 5, 6, 9, 10 are    */ ps[11] = pi + 3;
-          ps[ 4] = tmp2; /* calculated below              */ ps[ 7] = pi + 4;
-          ps[ 0] = tmp1; ps[ 1] = pi + 7;   ps[ 2] = pi + 6; ps[ 3] = pi + 5;
+          ps[12] = pi + 5; ps[13] = pi + 4;  ps[14] = pi + 3;  ps[15] = pi + 2;
+          ps[ 8] = pi + 6; /* values for 5, 6, 9, 10 are    */ ps[11] = pi + 1;
+          ps[ 4] = pi + 7; /* calculated below              */ ps[ 7] = pi;
+          ps[ 0] = tmp1;   ps[ 1] = tmp2;    ps[ 2] = tmp3;    ps[ 3] = tmp4;
           tmp1 = cs[2]; tmp2 = cs[3];
-          cs[2] = tmp2;   cs[3] = ci;
-          cs[0] = tmp1;   cs[1] = ci + 1;
+          cs[2] = ci + 1; cs[3] = ci;
+          cs[0] = tmp1;   cs[1] = tmp2;
           break;
         case 2:
-          tmp1 = ps[15];
-          tmp2 = ps[11];
-          ps[12] = ps[3];  ps[13] = pi + 0; ps[14] = pi + 1;   ps[15] = pi + 2;
-          ps[ 8] = ps[7];  /* values for 5, 6, 9, 10 are    */ ps[11] = pi + 3;
-          ps[ 4] = tmp2;   /* calculated below              */ ps[ 7] = pi + 4;
-          ps[ 0] = tmp1;  ps[ 1] = pi + 7;   ps[ 2] = pi + 6;  ps[ 3] = pi + 5;
-          tmp1 = cs[3];
-          cs[2] = cs[1]; cs[3] = ci;
-          cs[0] = tmp1;  cs[1] = ci + 1;
+          ps[12] = ps[15]; ps[13] = pi + 7; ps[14] = pi + 6;   ps[15] = pi + 5;
+          ps[ 8] = ps[11]; /* values for 5, 6, 9, 10 are    */ ps[11] = pi + 4;
+          ps[ 4] = ps[7];  /* calculated below              */ ps[ 7] = pi + 3;
+          ps[ 0] = ps[3];  ps[ 1] = pi;     ps[ 2] = pi + 1;   ps[ 3] = pi + 2;
+          cs[2] = cs[3]; cs[3] = ci + 1;
+          cs[0] = cs[1]; cs[1] = ci;
           break;
         case 3:
-          ps[12] = ps[0];  ps[13] = pi + 0;   ps[14] = pi + 1; ps[15] = pi + 2;
-          ps[ 8] = ps[1];  /* values for 5, 6, 9, 10 are    */ ps[11] = pi + 3;
-          ps[ 4] = ps[2];  /* calculated below              */ ps[ 7] = pi + 4;
-          ps[ 0] = ps[3];  ps[ 1] = pi + 7;   ps[ 2] = pi + 6; ps[ 3] = pi + 5;
-          cs[2] = cs[0]; cs[3] = ci;
-          cs[0] = cs[1]; cs[1] = ci + 1;
+          ps[12] = ps[0];  ps[13] = ps[1];   ps[14] = ps[2];   ps[15] = ps[3];
+          ps[ 8] = pi;     /* values for 5, 6, 9, 10 are    */ ps[11] = pi + 7;
+          ps[ 4] = pi + 1; /* calculated below              */ ps[ 7] = pi + 6;
+          ps[ 0] = pi + 2; ps[ 1] = pi + 3;  ps[ 2] = pi + 4;  ps[ 3] = pi + 5;
+          cs[2] = cs[0]; cs[3] = cs[1];
+          cs[0] = ci;    cs[1] = ci + 1;
           break;
       }
       // set p11, p12, p21, p22
@@ -644,32 +612,29 @@ Shadings.Mesh = (function MeshClosure() {
           break;
         case 1:
           tmp1 = ps[12]; tmp2 = ps[13]; tmp3 = ps[14]; tmp4 = ps[15];
-          ps[12] = tmp4;   ps[13] = pi + 0;  ps[14] = pi + 1;  ps[15] = pi + 2;
-          ps[ 8] = tmp3;   ps[ 9] = pi + 9;  ps[10] = pi + 10; ps[11] = pi + 3;
-          ps[ 4] = tmp2;   ps[ 5] = pi + 8;  ps[ 6] = pi + 11; ps[ 7] = pi + 4;
-          ps[ 0] = tmp1;   ps[ 1] = pi + 7;  ps[ 2] = pi + 6;  ps[ 3] = pi + 5;
+          ps[12] = pi + 5; ps[13] = pi + 4;  ps[14] = pi + 3;  ps[15] = pi + 2;
+          ps[ 8] = pi + 6; ps[ 9] = pi + 11; ps[10] = pi + 10; ps[11] = pi + 1;
+          ps[ 4] = pi + 7; ps[ 5] = pi + 8;  ps[ 6] = pi + 9;  ps[ 7] = pi;
+          ps[ 0] = tmp1;   ps[ 1] = tmp2;    ps[ 2] = tmp3;    ps[ 3] = tmp4;
           tmp1 = cs[2]; tmp2 = cs[3];
-          cs[2] = tmp2;   cs[3] = ci;
-          cs[0] = tmp1;   cs[1] = ci + 1;
+          cs[2] = ci + 1; cs[3] = ci;
+          cs[0] = tmp1;   cs[1] = tmp2;
           break;
         case 2:
-          tmp1 = ps[15];
-          tmp2 = ps[11];
-          ps[12] = ps[3]; ps[13] = pi + 0; ps[14] = pi + 1;  ps[15] = pi + 2;
-          ps[ 8] = ps[7]; ps[ 9] = pi + 9; ps[10] = pi + 10; ps[11] = pi + 3;
-          ps[ 4] = tmp2;  ps[ 5] = pi + 8; ps[ 6] = pi + 11; ps[ 7] = pi + 4;
-          ps[ 0] = tmp1;  ps[ 1] = pi + 7; ps[ 2] = pi + 6;  ps[ 3] = pi + 5;
-          tmp1 = cs[3];
-          cs[2] = cs[1]; cs[3] = ci;
-          cs[0] = tmp1;  cs[1] = ci + 1;
+          ps[12] = ps[15]; ps[13] = pi + 7; ps[14] = pi + 6;  ps[15] = pi + 5;
+          ps[ 8] = ps[11]; ps[ 9] = pi + 8; ps[10] = pi + 11; ps[11] = pi + 4;
+          ps[ 4] = ps[7];  ps[ 5] = pi + 9; ps[ 6] = pi + 10; ps[ 7] = pi + 3;
+          ps[ 0] = ps[3];  ps[ 1] = pi;     ps[ 2] = pi + 1;  ps[ 3] = pi + 2;
+          cs[2] = cs[3]; cs[3] = ci + 1;
+          cs[0] = cs[1]; cs[1] = ci;
           break;
         case 3:
-          ps[12] = ps[0];  ps[13] = pi + 0;  ps[14] = pi + 1;  ps[15] = pi + 2;
-          ps[ 8] = ps[1];  ps[ 9] = pi + 9;  ps[10] = pi + 10; ps[11] = pi + 3;
-          ps[ 4] = ps[2];  ps[ 5] = pi + 8;  ps[ 6] = pi + 11; ps[ 7] = pi + 4;
-          ps[ 0] = ps[3];  ps[ 1] = pi + 7;  ps[ 2] = pi + 6;  ps[ 3] = pi + 5;
-          cs[2] = cs[0]; cs[3] = ci;
-          cs[0] = cs[1]; cs[1] = ci + 1;
+          ps[12] = ps[0];  ps[13] = ps[1];   ps[14] = ps[2];   ps[15] = ps[3];
+          ps[ 8] = pi;     ps[ 9] = pi + 9;  ps[10] = pi + 8;  ps[11] = pi + 7;
+          ps[ 4] = pi + 1; ps[ 5] = pi + 10; ps[ 6] = pi + 11; ps[ 7] = pi + 6;
+          ps[ 0] = pi + 2; ps[ 1] = pi + 3;  ps[ 2] = pi + 4;  ps[ 3] = pi + 5;
+          cs[2] = cs[0]; cs[3] = cs[1];
+          cs[0] = ci;    cs[1] = ci + 1;
           break;
       }
       mesh.figures.push({
@@ -758,19 +723,19 @@ Shadings.Mesh = (function MeshClosure() {
 
     var patchMesh = false;
     switch (this.shadingType) {
-      case ShadingType.FREE_FORM_MESH:
+      case PatternType.FREE_FORM_MESH:
         decodeType4Shading(this, reader);
         break;
-      case ShadingType.LATTICE_FORM_MESH:
+      case PatternType.LATTICE_FORM_MESH:
         var verticesPerRow = dict.get('VerticesPerRow') | 0;
         assert(verticesPerRow >= 2, 'Invalid VerticesPerRow');
         decodeType5Shading(this, reader, verticesPerRow);
         break;
-      case ShadingType.COONS_PATCH_MESH:
+      case PatternType.COONS_PATCH_MESH:
         decodeType6Shading(this, reader);
         patchMesh = true;
         break;
-      case ShadingType.TENSOR_PATCH_MESH:
+      case PatternType.TENSOR_PATCH_MESH:
         decodeType7Shading(this, reader);
         patchMesh = true;
         break;
@@ -828,7 +793,3 @@ function getTilingPatternIR(operatorList, dict, args) {
     paintType, tilingType
   ];
 }
-
-exports.Pattern = Pattern;
-exports.getTilingPatternIR = getTilingPatternIR;
-}));

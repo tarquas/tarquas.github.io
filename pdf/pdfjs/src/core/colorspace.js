@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /* Copyright 2012 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,37 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/* globals error, info, isArray, isDict, isName, isStream, isString,
+           PDFFunction, PDFImage, shadow, warn */
 
 'use strict';
-
-(function (root, factory) {
-  if (typeof define === 'function' && define.amd) {
-    define('pdfjs/core/colorspace', ['exports', 'pdfjs/shared/util',
-      'pdfjs/core/primitives', 'pdfjs/core/function', 'pdfjs/core/stream'],
-      factory);
-  } else if (typeof exports !== 'undefined') {
-    factory(exports, require('../shared/util.js'), require('./primitives.js'),
-      require('./function.js'), require('./stream.js'));
-  } else {
-    factory((root.pdfjsCoreColorSpace = {}), root.pdfjsSharedUtil,
-      root.pdfjsCorePrimitives, root.pdfjsCoreFunction, root.pdfjsCoreStream);
-  }
-}(this, function (exports, sharedUtil, corePrimitives, coreFunction,
-                  coreStream) {
-
-var error = sharedUtil.error;
-var info = sharedUtil.info;
-var isArray = sharedUtil.isArray;
-var isString = sharedUtil.isString;
-var shadow = sharedUtil.shadow;
-var warn = sharedUtil.warn;
-var isDict = corePrimitives.isDict;
-var isName = corePrimitives.isName;
-var isStream = corePrimitives.isStream;
-var PDFFunction = coreFunction.PDFFunction;
-
-var coreImage; // see _setCoreImage below
-var PDFImage; // = coreImage.PDFImage;
 
 var ColorSpace = (function ColorSpaceClosure() {
   // Constructor should define this.numComps, this.defaultColor, this.name
@@ -285,9 +260,9 @@ var ColorSpace = (function ColorSpaceClosure() {
           error('unrecognized colorspace ' + mode);
       }
     } else if (isArray(cs)) {
-      mode = xref.fetchIfRef(cs[0]).name;
+      mode = cs[0].name;
       this.mode = mode;
-      var numComps, params, alt;
+      var numComps, params;
 
       switch (mode) {
         case 'DeviceGray':
@@ -300,26 +275,15 @@ var ColorSpace = (function ColorSpaceClosure() {
         case 'CMYK':
           return 'DeviceCmykCS';
         case 'CalGray':
-          params = xref.fetchIfRef(cs[1]).getAll();
+          params = cs[1].getAll();
           return ['CalGrayCS', params];
         case 'CalRGB':
-          params = xref.fetchIfRef(cs[1]).getAll();
+          params = cs[1].getAll();
           return ['CalRGBCS', params];
         case 'ICCBased':
           var stream = xref.fetchIfRef(cs[1]);
           var dict = stream.dict;
           numComps = dict.get('N');
-          alt = dict.get('Alternate');
-          if (alt) {
-            var altIR = ColorSpace.parseToIR(alt, xref, res);
-            // Parse the /Alternate CS to ensure that the number of components
-            // are correct, and also (indirectly) that it is not a PatternCS.
-            var altCS = ColorSpace.fromIR(altIR);
-            if (altCS.numComps === numComps) {
-              return altIR;
-            }
-            warn('ICCBased color space: Ignoring incorrect /Alternate entry.');
-          }
           if (numComps === 1) {
             return 'DeviceGrayCS';
           } else if (numComps === 3) {
@@ -329,7 +293,7 @@ var ColorSpace = (function ColorSpaceClosure() {
           }
           break;
         case 'Pattern':
-          var basePatternCS = cs[1] || null;
+          var basePatternCS = cs[1];
           if (basePatternCS) {
             basePatternCS = ColorSpace.parseToIR(basePatternCS, xref, res);
           }
@@ -337,7 +301,7 @@ var ColorSpace = (function ColorSpaceClosure() {
         case 'Indexed':
         case 'I':
           var baseIndexedCS = ColorSpace.parseToIR(cs[1], xref, res);
-          var hiVal = xref.fetchIfRef(cs[2]) + 1;
+          var hiVal = cs[2] + 1;
           var lookup = xref.fetchIfRef(cs[3]);
           if (isStream(lookup)) {
             lookup = lookup.getBytes();
@@ -345,18 +309,18 @@ var ColorSpace = (function ColorSpaceClosure() {
           return ['IndexedCS', baseIndexedCS, hiVal, lookup];
         case 'Separation':
         case 'DeviceN':
-          var name = xref.fetchIfRef(cs[1]);
+          var name = cs[1];
           numComps = 1;
           if (isName(name)) {
             numComps = 1;
           } else if (isArray(name)) {
             numComps = name.length;
           }
-          alt = ColorSpace.parseToIR(cs[2], xref, res);
+          var alt = ColorSpace.parseToIR(cs[2], xref, res);
           var tintFnIR = PDFFunction.getIR(xref, xref.fetchIfRef(cs[3]));
           return ['AlternateCS', numComps, alt, tintFnIR];
         case 'Lab':
-          params = xref.fetchIfRef(cs[1]).getAll();
+          params = cs[1].getAll();
           return ['LabCS', params];
         default:
           error('unimplemented color space object "' + mode + '"');
@@ -376,7 +340,7 @@ var ColorSpace = (function ColorSpaceClosure() {
    * @param {Number} n Number of components the color space has.
    */
   ColorSpace.isDefaultDecode = function ColorSpace_isDefaultDecode(decode, n) {
-    if (!isArray(decode)) {
+    if (!decode) {
       return true;
     }
 
@@ -1280,16 +1244,3 @@ var LabCS = (function LabCSClosure() {
   };
   return LabCS;
 })();
-
-// TODO refactor to remove dependency on image.js
-function _setCoreImage(coreImage_) {
-  coreImage = coreImage_;
-  PDFImage = coreImage_.PDFImage;
-}
-exports._setCoreImage = _setCoreImage;
-
-exports.ColorSpace = ColorSpace;
-
-// TODO refactor to remove dependency on colorspace.js
-coreStream._setCoreColorSpace(exports);
-}));

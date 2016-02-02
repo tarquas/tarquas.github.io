@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /* Copyright 2012 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,6 +25,8 @@ var SecondaryToolbar = {
 
   initialize: function secondaryToolbarInitialize(options) {
     this.toolbar = options.toolbar;
+    this.presentationMode = options.presentationMode;
+    this.documentProperties = options.documentProperties;
     this.buttonContainer = this.toolbar.firstElementChild;
 
     // Define the toolbar buttons.
@@ -68,7 +72,7 @@ var SecondaryToolbar = {
 
   // Event handling functions.
   presentationModeClick: function secondaryToolbarPresentationModeClick(evt) {
-    PDFViewerApplication.requestPresentationMode();
+    this.presentationMode.request();
     this.close();
   },
 
@@ -112,7 +116,7 @@ var SecondaryToolbar = {
   },
 
   documentPropertiesClick: function secondaryToolbarDocumentPropsClick(evt) {
-    PDFViewerApplication.pdfDocumentProperties.open();
+    this.documentProperties.open();
     this.close();
   },
 

@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 /* Copyright 2014 Mozilla Foundation
  *
@@ -14,18 +16,6 @@
  * limitations under the License.
  */
 
-'use strict';
-
-(function (root, factory) {
-  if (typeof define === 'function' && define.amd) {
-    define('pdfjs/core/jpg', ['exports'], factory);
-  } else if (typeof exports !== 'undefined') {
-    factory(exports);
-  } else {
-    factory((root.pdfjsCoreJpg = {}));
-  }
-}(this, function (exports) {
-
 /*
 This code was forked from https://github.com/notmasteryet/jpgjs. The original
 version was created by github user notmasteryet
@@ -38,6 +28,8 @@ version was created by github user notmasteryet
  in PostScript Level 2, Technical Note #5116
  (partners.adobe.com/public/developer/en/ps/sdk/5116.DCT_Filter.pdf)
 */
+
+'use strict';
 
 var JpegImage = (function jpegImage() {
   var dctZigZag = new Uint8Array([
@@ -109,8 +101,12 @@ var JpegImage = (function jpegImage() {
 
   function decodeScan(data, offset, frame, components, resetInterval,
                       spectralStart, spectralEnd, successivePrev, successive) {
+    var precision = frame.precision;
+    var samplesPerLine = frame.samplesPerLine;
+    var scanLines = frame.scanLines;
     var mcusPerLine = frame.mcusPerLine;
     var progressive = frame.progressive;
+    var maxH = frame.maxH, maxV = frame.maxV;
 
     var startOffset = offset, bitsData = 0, bitsCount = 0;
 
@@ -618,9 +614,10 @@ var JpegImage = (function jpegImage() {
         frame.mcusPerColumn = mcusPerColumn;
       }
 
-      var offset = 0;
+      var offset = 0, length = data.length;
       var jfif = null;
       var adobe = null;
+      var pixels = null;
       var frame, resetInterval;
       var quantizationTables = [];
       var huffmanTablesAC = [], huffmanTablesDC = [];
@@ -672,9 +669,9 @@ var JpegImage = (function jpegImage() {
             if (fileMarker === 0xFFEE) {
               if (appData[0] === 0x41 && appData[1] === 0x64 &&
                   appData[2] === 0x6F && appData[3] === 0x62 &&
-                  appData[4] === 0x65) { // 'Adobe'
+                  appData[4] === 0x65 && appData[5] === 0) { // 'Adobe\x00'
                 adobe = {
-                  version: (appData[5] << 8) | appData[6],
+                  version: appData[6],
                   flags0: (appData[7] << 8) | appData[8],
                   flags1: (appData[9] << 8) | appData[10],
                   transformCode: appData[11]
@@ -795,13 +792,6 @@ var JpegImage = (function jpegImage() {
               successiveApproximation >> 4, successiveApproximation & 15);
             offset += processed;
             break;
-
-          case 0xFFFF: // Fill bytes
-            if (data[offset] !== 0xFF) { // Avoid skipping a valid marker.
-              offset--;
-            }
-            break;
-
           default:
             if (data[offset - 3] === 0xFF &&
                 data[offset - 2] >= 0xC0 && data[offset - 2] <= 0xFE) {
@@ -1038,6 +1028,3 @@ var JpegImage = (function jpegImage() {
 
   return constructor;
 })();
-
-exports.JpegImage = JpegImage;
-}));

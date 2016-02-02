@@ -1,3 +1,5 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /* Copyright 2013 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +82,7 @@
 
   function renderProgress() {
     var progressContainer = document.getElementById('mozPrintCallback-shim');
-    if (canvases && canvases.length) {
+    if (canvases) {
       var progress = Math.round(100 * index / canvases.length);
       var progressBar = progressContainer.querySelector('progress');
       var progressPerc = progressContainer.querySelector('.relative-progress');
