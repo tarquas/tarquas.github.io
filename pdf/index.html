@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  
+    <title>Tarquas PDF Viewer - PDF.js vs. Flexpaper</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width" />
+
+    <link rel="stylesheet" type="text/css" href="css/flexpaper.css" />
+
+    <style id="fontFaces">
+      
+        @font-face { font-family: 'plus'; src: url(data:font/opentype;base64,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); }
+
+    </style>
+    
+    <script src="tests.js"></script>
+    
+</head><body>
+
+    <div id="canvasHolder" style="display: none;"></div>
+
+    <div id="plusfontusage" style="font-family: plus; visibility: hidden;">`</div>
+    
+    <div id="info"> Please wait... </div>
+    
+
+    <script>
+
+        var  file = encodeURIComponent( decodeURIComponent( location.search.substr(1) ) );
+
+
+        checkCompatAndRun();
+        
+
+        function checkCompatAndRun() {
+          
+            var i;
+
+            try {
+              
+                for ( i in tests )
+                    tests[ i ].run();
+
+                usePdfJs();
+                    
+            } catch( ee ) {
+
+                useFlexPaper();
+                
+            }
+        }
+
+
+        function usePdfJs() {
+          
+            location = "pdfjs/web/?file=" + file + "#zoom=page-fit";
+        }
+
+
+        function useFlexPaper() {
+
+            var swfFile = file + ".swf";
+            
+            location = "flexpaper/?" + swfFile;
+        }
+        
+    </script>
+
+</body></html>
