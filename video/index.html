@@ -6,8 +6,11 @@
   <div id="player"></div>
 
   <script>
+    var url = location.search && location.search.substr(1);
+
     jwplayer("player").setup({
-      file: location.search && location.search.substr(1),
+      file: url,
+      poster: url && (url + '.jpg'),
       width: "100%",
       height: "100%",
       logo: {hide: true}
